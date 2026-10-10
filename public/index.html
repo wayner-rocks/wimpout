@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#120a2e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<title>Cosmic Wimpout</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#f4eeff;background:#120a2e}
+body{background:linear-gradient(#120a2e55,#120a2e88),url(img/bg.jpg) center/cover fixed,#120a2e;min-height:100%;overflow-x:hidden}
+#app{max-width:520px;margin:0 auto;padding:14px 14px 40px;padding-top:max(14px,env(safe-area-inset-top))}
+.logo{display:block;width:100%;max-width:420px;margin:4px auto 6px;border-radius:22px;box-shadow:0 0 28px #ff6ec766,0 0 0 2px #ffd84d88}.logo.small{max-width:210px;border-radius:14px}
+.shake{animation:shake .5s}@keyframes shake{10%,90%{transform:translateX(-4px)}20%,80%{transform:translateX(7px)}30%,50%,70%{transform:translateX(-10px)}40%,60%{transform:translateX(10px)}}
+#fx{position:fixed;inset:0;pointer-events:none;z-index:20}
+.mute{position:fixed;top:max(8px,env(safe-area-inset-top));right:8px;z-index:11;width:44px;height:44px;border-radius:50%;padding:0;font-size:20px;margin:0;background:#00000066;color:#fff}
+.sub{text-align:center;opacity:.75;margin-bottom:18px;font-size:14px}
+.card{background:#ffffff12;border:1px solid #ffffff22;border-radius:16px;padding:14px;margin:12px 0;backdrop-filter:blur(6px)}
+input{width:100%;padding:14px;border-radius:12px;border:1px solid #ffffff33;background:#00000044;color:#fff;font-size:17px;margin:6px 0}
+input.code{text-transform:uppercase;letter-spacing:6px;text-align:center;font-size:24px}
+button{font:inherit;font-weight:700;border:0;border-radius:14px;padding:14px 18px;color:#1a0b3a;background:linear-gradient(135deg,#ffd84d,#ff9f43);cursor:pointer;width:100%;font-size:18px;margin:6px 0;transition:transform .08s}
+button:active{transform:scale(.97)}
+button.alt{background:linear-gradient(135deg,#6ee7ff,#8b7bff)}
+button.ghost{background:#ffffff1c;color:#f4eeff;font-weight:600;font-size:15px;padding:10px}
+button.bank{background:linear-gradient(135deg,#5dffa0,#17c964)}
+button:disabled{opacity:.35;transform:none}
+.row{display:flex;gap:10px}.row>*{flex:1}
+.codebig{font-size:54px;letter-spacing:10px;text-align:center;font-weight:900;color:#ffd84d;margin:4px 0}
+.pl{display:flex;align-items:center;justify-content:space-between;padding:9px 12px;border-radius:12px;margin:5px 0;background:#00000030;border:2px solid transparent}
+.pl.cur{border-color:#ffd84d;background:#ffd84d1f;box-shadow:0 0 18px #ffd84d44}
+.pl.out{opacity:.4;text-decoration:line-through}
+.pl .sc{font-size:22px;font-weight:800}
+.pl .tag{font-size:11px;opacity:.7;margin-left:6px}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:#5dffa0;margin-right:8px}.dot.off{background:#777}
+.turnbox{text-align:center}
+.pts{font-size:46px;font-weight:900;color:#5dffa0;line-height:1}
+.ptl{font-size:12px;opacity:.7;text-transform:uppercase;letter-spacing:2px}
+.dice{display:flex;justify-content:center;gap:8px;margin:16px 0 8px;flex-wrap:nowrap}
+.die{width:17vw;max-width:84px;aspect-ratio:1;border-radius:16px;display:flex;align-items:center;justify-content:center;font-weight:900;position:relative;transition:all .2s}
+.die img{width:100%;height:100%;display:block;pointer-events:none;-webkit-user-drag:none}
+.die.empty{background:#00000044;border:3px dashed #ffffff33}.die.empty::after{content:'?';font-size:30px;opacity:.35}
+.die .g{font-size:min(9vw,44px);line-height:1}
+.die .n{font-size:12px;opacity:.7;margin-top:2px}
+.die.held img{filter:drop-shadow(0 0 7px #5dffa0) saturate(1.1)}.die.held::before{content:'\2713';position:absolute;top:-6px;right:-4px;z-index:2;width:22px;height:22px;border-radius:50%;background:#17c964;color:#04210f;font-size:14px;line-height:22px;text-align:center}
+.die.next img{filter:drop-shadow(0 0 8px #ffd84d)}.die:not(.held):not(.next):not(.empty) img{opacity:.8}
+.die.tumble{animation:tumble .18s linear infinite}
+@keyframes tumble{0%{transform:rotate(-14deg) translateY(-3px)}50%{transform:rotate(12deg) translateY(3px)}100%{transform:rotate(-14deg) translateY(-3px)}}
+.msg{min-height:24px;text-align:center;font-weight:700;font-size:16px;margin:4px 0}
+.msg.bad{color:#ff6b81}.msg.good{color:#5dffa0}.msg.win{color:#ffd84d}
+.hint{font-size:13px;opacity:.75;text-align:center;margin:4px 0}
+.log{font-size:13px;opacity:.85;max-height:150px;overflow:auto;display:flex;flex-direction:column-reverse}
+.log div{padding:3px 0;border-bottom:1px solid #ffffff10}
+.chk{display:flex;align-items:center;gap:10px;justify-content:center;margin:6px 0;font-size:15px}
+.chk input{width:22px;height:22px;margin:0}
+.err{background:#ff6b8133;border:1px solid #ff6b81;color:#ffd0d6;padding:10px;border-radius:12px;text-align:center;margin:8px 0}
+.conn{position:fixed;top:0;left:0;right:0;background:#ff6b81;color:#fff;text-align:center;font-size:13px;padding:4px;z-index:9}
+.modal{position:fixed;inset:0;background:#000b;z-index:10;overflow:auto;padding:16px}
+.modal .card{background:#1b1040;max-width:520px;margin:20px auto;font-size:14px;line-height:1.45}
+.modal table{width:100%;border-collapse:collapse}.modal td{padding:3px 6px;border-bottom:1px solid #ffffff18}
+.big{font-size:26px;text-align:center;font-weight:900;margin:10px 0}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<canvas id="fx"></canvas>
+<button class="mute" id="mute" onclick="toggleMute()" aria-label="Sound">&#128266;</button>
+<div id="conn" class="conn" style="display:none">Reconnecting...</div>
+<script>
+'use strict';
+const $ = (s) => document.querySelector(s);
+const G = { sun: ['☀️', ''], '10': ['10', ''], '5': ['5', ''], '2': ['☾', '2'], '3': ['▲', '3'], '4': ['✸', '4'], '6': ['★', '6'] };
+const ALL = Object.keys(G);
+const img = (f) => `<img src="img/die_${f}.png" alt="${f}" draggable="false">`;
+let ws, S = null, errMsg = '', shownRoll = -1, animating = false, sunChoice = false, rulesOpen = false, lastEvent = 0, animTimer = null;
+
+function send(o) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(o)); }
+function connect() {
+  ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host);
+  ws.onopen = () => {
+    $('#conn').style.display = 'none';
+    const s = JSON.parse(localStorage.getItem('cw') || 'null');
+    if (s && s.code && s.token) send({ type: 'resume', code: s.code, token: s.token });
+  };
+  ws.onclose = () => { $('#conn').style.display = 'block'; setTimeout(connect, 1500); };
+  ws.onmessage = (e) => {
+    const m = JSON.parse(e.data);
+    if (m.type === 'joined') localStorage.setItem('cw', JSON.stringify({ code: m.code, token: m.token }));
+    else if (m.type === 'left') { localStorage.removeItem('cw'); S = null; render(); }
+    else if (m.type === 'error') { errMsg = m.message; render(); setTimeout(() => { errMsg = ''; render(); }, 3500); }
+    else if (m.type === 'state') onState(m.state);
+  };
+}
+
+function onState(st) {
+  const prev = S;
+  S = st; errMsg = '';
+  const t = st.turn;
+  if (t && t.rollNo !== shownRoll && t.rolled) {
+    shownRoll = t.rollNo;
+    animateRoll(t.lastRoll); sfx.rattle();
+    if (navigator.vibrate) navigator.vibrate(30);
+  } else if (!t || !t.rolled) { shownRoll = t ? t.rollNo : -1; }
+  if (!prev || prev.cur !== st.cur) sunChoice = false;
+  render();
+  fxFromState(prev, st);
+}
+
+function animateRoll(idxs) {
+  animating = true;
+  clearInterval(animTimer);
+  let n = 0;
+  animTimer = setInterval(() => {
+    n++;
+    document.querySelectorAll('.die').forEach((d) => {
+      const i = +d.dataset.i;
+      if (idxs.includes(i)) {
+        const f = ALL[Math.floor(Math.random() * ALL.length)];
+        d.classList.add('tumble');
+        d.innerHTML = img(f);
+      }
+    });
+    if (n >= 5) { clearInterval(animTimer); animating = false; render(); afterRollFx(); }
+  }, 110);
+}
+
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+function rulesHtml() {
+  return `<div class="modal" onclick="rulesOpen=false;render()"><div class="card" onclick="event.stopPropagation()">
+<h3 style="margin-top:0">How to play</h3>
+<p>Roll 5 dice. <b>5</b> = 5 pts, <b>10</b> = 10 pts, <b>☀️ Flaming Sun</b> is wild (worth 10, or reroll it). Anything else on its own scores nothing. Roll nothing that scores and you <b>wimp out</b> (lose the turn's points).</p>
+<b>Flash</b> = three matching faces in one roll<table>
+<tr><td>☾ ☾ ☾ (2s)</td><td>20</td><td>▲ (3s)</td><td>30</td></tr>
+<tr><td>✸ (4s)</td><td>40</td><td>5 5 5</td><td>50</td></tr>
+<tr><td>★ (6s)</td><td>60</td><td>10 10 10</td><td>100</td></tr></table>
+<b>Freight Train</b> = five matching: 2s 200, 4s 400, 5s 500, <b>★★★★★ instant win</b>, <b>ten x5 = Supernova</b> (you're out!).
+<ul>
+<li><b>Getting in:</b> your first banked turn needs 35+.</li>
+<li><b>Futtless rule:</b> after a flash you must roll the leftover dice and score to clear it, or wimp out. Rolling a flash face again = automatic reroll.</li>
+<li><b>Sun rule:</b> a Sun rolled with a pair must make a flash.</li>
+<li><b>Must-roll:</b> if all 5 dice score, you must roll all 5 again.</li>
+<li><b>Last licks:</b> when someone reaches the goal, everyone else gets one more turn.</li></ul>
+<button onclick="rulesOpen=false;render()">Got it</button></div></div>`;
+}
+
+function dieHtml(d, i, t, mine) {
+  const f = d.face;
+  const cls = ['die'];
+  if (!f) cls.push('empty');
+  if (f === 'sun') cls.push('sun');
+  if (f && d.scoring) cls.push('held');
+  else if (mine && !t.over && t.avail.includes(i) && t.rolled) cls.push('next');
+  return `<div class="${cls.join(' ')}" data-i="${i}">${f ? img(f) : ''}</div>`;
+}
+
+function render() {
+  const app = $('#app');
+  const keepTumble = animating;
+  let h = `<img class="logo ${S && S.status !== 'lobby' ? 'small' : ''}" src="img/logo.jpg" alt="Cosmic Wimpout">`;
+  if (errMsg) h += `<div class="err">${esc(errMsg)}</div>`;
+
+  if (!S) {
+    const saved = localStorage.getItem('cwname') || '';
+    h += `<div class="sub">Roll the cubes with your friends</div>
+<div class="card"><input id="name" maxlength="16" placeholder="Your name" value="${esc(saved)}">
+<button onclick="createRoom()">Create a game</button></div>
+<div class="card"><input id="code" class="code" maxlength="4" placeholder="CODE">
+<button class="alt" onclick="joinRoom()">Join a game</button></div>
+<button class="ghost" onclick="rulesOpen=true;render()">How to play</button>`;
+  } else if (S.status === 'lobby') {
+    const host = S.hostId === S.you;
+    h += `<div class="sub">Share this code with your friends</div><div class="codebig">${S.code}</div>
+<div class="card"><b>Players (${S.players.length})</b>${S.players.map((p) => `<div class="pl"><span><span class="dot ${p.connected ? '' : 'off'}"></span>${esc(p.name)}${p.id === S.hostId ? '<span class="tag">host</span>' : ''}${p.id === S.you ? '<span class="tag">you</span>' : ''}</span></div>`).join('')}</div>`;
+    if (host) {
+      h += `<div class="card"><div class="hint">Play to:</div><div class="row"><button class="${S.goal === 300 ? '' : 'ghost'}" onclick="send({type:'goal',goal:300})">300</button><button class="${S.goal === 500 ? '' : 'ghost'}" onclick="send({type:'goal',goal:500})">500</button></div>
+<button onclick="send({type:'start'})" ${S.players.length < 2 ? 'disabled' : ''}>Start game</button>
+${S.players.length < 2 ? '<div class="hint">Waiting for at least one more player...</div>' : ''}</div>`;
+    } else h += `<div class="hint">Waiting for the host to start (playing to ${S.goal})...</div>`;
+    h += `<button class="ghost" onclick="rulesOpen=true;render()">How to play</button><button class="ghost" onclick="leaveGame()">Leave</button>`;
+  } else {
+    const t = S.turn;
+    const curP = S.players.find((p) => p.id === S.cur);
+    const mine = S.cur === S.you;
+    const host = S.hostId === S.you;
+    h += `<div class="card">${S.players.map((p) => `<div class="pl ${p.id === S.cur && S.status === 'playing' ? 'cur' : ''} ${p.out ? 'out' : ''}"><span><span class="dot ${p.connected ? '' : 'off'}"></span>${esc(p.name)}${p.id === S.you ? '<span class="tag">you</span>' : ''}${!p.opened && !p.out ? '<span class="tag">not in yet</span>' : ''}</span><span class="sc">${p.score}</span></div>`).join('')}
+<div class="hint">Goal: ${S.goal}${S.lastLicks ? ' — LAST LICKS!' : ''}</div></div>`;
+    if (S.status === 'ended') {
+      const w = S.players.find((p) => p.id === S.winner);
+      h += `<div class="card"><div class="big">🏆 ${w ? esc(w.name) : 'Nobody'} wins!</div>${host ? '<button onclick="send({type:\'again\'})">Play again</button>' : '<div class="hint">Waiting for host to start a rematch</div>'}<button class="ghost" onclick="leaveGame()">Leave</button></div>`;
+    } else if (t) {
+      const evt = S.log[S.log.length - 1] || '';
+      let msgCls = '', msg = '';
+      if (t.over) { msgCls = 'bad'; msg = { wimpout: 'WIMPOUT! Points lost.', trainwreck: 'TRAIN WRECK! Points lost.', supernova: 'SUPERNOVA! Out of the game!', win: 'FIVE STARS - INSTANT WIN!' }[t.outcome]; if (t.outcome === 'win') msgCls = 'win'; }
+      else if (t.note) { msgCls = 'good'; msg = t.note; }
+      h += `<div class="card turnbox"><div class="ptl">${mine ? 'Your turn' : esc(curP.name) + "'s turn"} — turn points</div><div class="pts">${t.pts}</div>
+<div class="dice">${t.dice.map((d, i) => dieHtml(d, i, t, mine)).join('')}</div>
+<div class="msg ${msgCls}">${esc(msg)}</div>`;
+      if (mine && !t.over) {
+        let hint = '';
+        if (!t.rolled) hint = 'Roll all five cubes!';
+        else if (t.mustAll) hint = 'All five scored — you must roll all five again!';
+        else if (t.pending) hint = 'Flash! Roll the leftover cubes to clear it.';
+        else if (!t.canBank && t.pts < S.openMin && !curP.opened) hint = 'You need ' + S.openMin + '+ to get in. Keep rolling.';
+        else hint = 'Green dice are kept. Roll the rest or bank your points.';
+        h += `<div class="hint">${hint}</div>`;
+        if (t.canRerollSun) h += `<label class="chk"><input type="checkbox" ${sunChoice ? 'checked' : ''} onchange="sunChoice=this.checked"> Reroll my Flaming Sun ☀️ (give up its 10)</label>`;
+        h += `<div class="row"><button onclick="doRoll()" ${animating ? 'disabled' : ''}>🎲 Roll ${t.avail.length}</button>${t.canBank ? `<button class="bank" onclick="send({type:'bank'})" ${animating ? 'disabled' : ''}>Bank ${t.pts}</button>` : ''}</div>`;
+      } else if (!t.over) {
+        h += `<div class="hint">Waiting for ${esc(curP.name)}...</div>`;
+        if (host && curP && !curP.connected) h += `<button class="ghost" onclick="send({type:'skip'})">Skip disconnected player</button>`;
+      }
+      h += '</div>';
+    }
+    h += `<div class="card log">${S.log.slice().reverse().map((l) => `<div>${esc(l)}</div>`).join('')}</div>
+<div class="row"><button class="ghost" onclick="rulesOpen=true;render()">Rules</button>${host && S.status === 'playing' ? '<button class="ghost" onclick="if(confirm(\'Skip this turn?\'))send({type:\'skip\'})">Skip turn</button>' : ''}<button class="ghost" onclick="if(confirm('Leave the game?'))leaveGame()">Leave</button></div>`;
+  }
+  if (rulesOpen) h += rulesHtml();
+  const nameVal = $('#name') ? $('#name').value : null, codeVal = $('#code') ? $('#code').value : null;
+  app.innerHTML = h;
+  if (nameVal !== null && $('#name')) $('#name').value = nameVal;
+  if (codeVal !== null && $('#code')) $('#code').value = codeVal;
+  if (keepTumble) document.querySelectorAll('.die').forEach((d) => { if (S && S.turn && S.turn.lastRoll.includes(+d.dataset.i)) d.classList.add('tumble'); });
+}
+
+function myName() { const n = ($('#name').value || '').trim() || 'Player'; localStorage.setItem('cwname', n); return n; }
+function createRoom() { send({ type: 'create', name: myName(), goal: 500 }); }
+function joinRoom() { const c = ($('#code').value || '').trim(); if (c.length !== 4) { errMsg = 'Enter the 4-letter code'; return render(); } send({ type: 'join', name: myName(), code: c }); }
+function doRoll() { send({ type: 'roll', rerollSun: sunChoice }); sunChoice = false; }
+function leaveGame() { send({ type: 'leave' }); localStorage.removeItem('cw'); S = null; render(); }
+
+/* ---------- sound + effects ---------- */
+let muted = localStorage.getItem('cwmute') === '1', actx = null;
+function ac() { try { if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === 'suspended') actx.resume(); } catch (e) {} return actx; }
+function tone(freq, t0, dur, type, vol, slideTo) {
+  const a = ac(); if (!a || muted) return;
+  const o = a.createOscillator(), g = a.createGain();
+  o.type = type || 'sine'; o.frequency.setValueAtTime(freq, a.currentTime + t0);
+  if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, a.currentTime + t0 + dur);
+  g.gain.setValueAtTime(0.0001, a.currentTime + t0);
+  g.gain.exponentialRampToValueAtTime(vol || 0.2, a.currentTime + t0 + 0.02);
+  g.gain.exponentialRampToValueAtTime(0.0001, a.currentTime + t0 + dur);
+  o.connect(g); g.connect(a.destination); o.start(a.currentTime + t0); o.stop(a.currentTime + t0 + dur + 0.05);
+}
+function noise(t0, dur, vol) {
+  const a = ac(); if (!a || muted) return;
+  const b = a.createBuffer(1, a.sampleRate * dur, a.sampleRate), d = b.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
+  const s = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
+  f.type = 'bandpass'; f.frequency.value = 1800 + Math.random() * 1500; g.gain.value = vol || 0.25;
+  s.buffer = b; s.connect(f); f.connect(g); g.connect(a.destination); s.start(a.currentTime + t0);
+}
+const sfx = {
+  rattle() { for (let i = 0; i < 7; i++) noise(i * 0.075, 0.06, 0.28); },
+  good() { [523, 659, 784, 1047].forEach((f, i) => tone(f, i * 0.09, 0.28, 'triangle', 0.22)); },
+  flash() { tone(880, 0, 0.12, 'square', 0.1); tone(1320, 0.1, 0.2, 'square', 0.1); },
+  bad() { tone(330, 0, 0.3, 'sawtooth', 0.18, 220); tone(262, 0.3, 0.3, 'sawtooth', 0.18, 175); tone(196, 0.6, 0.6, 'sawtooth', 0.2, 98); },
+  boom() { tone(120, 0, 1.2, 'sine', 0.5, 25); noise(0, 1.0, 0.5); },
+  win() { [523, 659, 784, 1047, 784, 1047, 1319].forEach((f, i) => tone(f, i * 0.13, 0.35, 'triangle', 0.25)); }
+};
+function toggleMute() { muted = !muted; localStorage.setItem('cwmute', muted ? '1' : '0'); $('#mute').innerHTML = muted ? '&#128263;' : '&#128266;'; ac(); }
+$('#mute').innerHTML = muted ? '&#128263;' : '&#128266;';
+document.addEventListener('touchstart', ac, { once: true }); document.addEventListener('click', ac, { once: true });
+
+const cv = $('#fx'), cx = cv.getContext('2d'); let parts = [], raf = 0;
+function sizeCv() { cv.width = innerWidth; cv.height = innerHeight; } sizeCv(); addEventListener('resize', sizeCv);
+function confetti(n) {
+  const cols = ['#ffd84d', '#ff6ec7', '#6ee7ff', '#5dffa0', '#ff9f43', '#b69bff'];
+  for (let i = 0; i < (n || 140); i++) parts.push({ x: innerWidth / 2 + (Math.random() - .5) * 120, y: innerHeight * .4, vx: (Math.random() - .5) * 14, vy: -Math.random() * 15 - 4, r: 4 + Math.random() * 6, c: cols[i % cols.length], a: Math.random() * 6, va: (Math.random() - .5) * .4, life: 140 + Math.random() * 60 });
+  if (!raf) raf = requestAnimationFrame(tick);
+}
+function tick() {
+  cx.clearRect(0, 0, cv.width, cv.height);
+  parts = parts.filter((p) => p.life-- > 0 && p.y < cv.height + 20);
+  for (const p of parts) { p.vy += .45; p.x += p.vx; p.y += p.vy; p.vx *= .99; p.a += p.va; cx.save(); cx.translate(p.x, p.y); cx.rotate(p.a); cx.fillStyle = p.c; cx.globalAlpha = Math.min(1, p.life / 40); cx.fillRect(-p.r, -p.r / 2, p.r * 2, p.r); cx.restore(); }
+  raf = parts.length ? requestAnimationFrame(tick) : 0;
+}
+function shake() { const a = $('#app'); a.classList.remove('shake'); void a.offsetWidth; a.classList.add('shake'); if (navigator.vibrate) navigator.vibrate([80, 40, 160]); }
+
+let pendingOutcome = null;
+function afterRollFx() {
+  const t = S && S.turn; if (!t) return;
+  if (t.over) {
+    if (t.outcome === 'supernova') { sfx.boom(); shake(); }
+    else if (t.outcome === 'win') { sfx.win(); confetti(); }
+    else { sfx.bad(); shake(); }
+  } else if (t.note) { sfx.flash(); }
+}
+function fxFromState(prev, st) {
+  const e = st.event;
+  if (e && e.seq !== lastEvent) {
+    const first = lastEvent === 0; lastEvent = e.seq;
+    if (!first) {
+      if (e.kind === 'good') { sfx.good(); if (/banked [0-9]{3,}/.test(e.text)) confetti(40); }
+      if (e.kind === 'win' && st.status === 'ended') { sfx.win(); confetti(220); }
+      else if (e.kind === 'win') { sfx.win(); confetti(80); }
+    }
+  }
+}
+
+render();
+connect();
+</script>
+</body>
+</html>

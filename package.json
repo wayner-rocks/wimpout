@@ -1,0 +1,9 @@
+{
+  "name": "cosmic-wimpout-online",
+  "version": "1.0.0",
+  "description": "Online multiplayer Cosmic Wimpout dice game for friends",
+  "main": "server.js",
+  "scripts": { "start": "node server.js", "test": "node test.js" },
+  "dependencies": { "ws": "^8.18.0" },
+  "engines": { "node": ">=18" }
+}
