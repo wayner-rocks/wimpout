@@ -10,6 +10,54 @@ const PORT = process.env.PORT || 3000;
 const PUBLIC = path.join(__dirname, 'public');
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png' };
 
+
+// ---------- persistent win tracking (by player name) ----------
+// Default: a JSON file in ./data (or DATA_DIR). Optional durable storage: set
+// UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN to keep scores in a free Upstash Redis database.
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
+const SCORE_FILE = path.join(DATA_DIR, 'scores.json');
+const UP_URL = process.env.UPSTASH_REDIS_REST_URL;
+const UP_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
+let scores = {};
+async function upstash(cmd) {
+  const r = await fetch(UP_URL, { method: 'POST', headers: { Authorization: 'Bearer ' + UP_TOKEN }, body: JSON.stringify(cmd) });
+  return r.json();
+}
+async function loadScores() {
+  try {
+    if (UP_URL && UP_TOKEN) { const j = await upstash(['GET', 'cw:scores']); if (j.result) scores = JSON.parse(j.result); }
+    else if (fs.existsSync(SCORE_FILE)) scores = JSON.parse(fs.readFileSync(SCORE_FILE, 'utf8'));
+  } catch (e) { console.error('Could not load scores:', e.message); }
+}
+let saving = false, dirty = false;
+async function saveScores() {
+  if (saving) { dirty = true; return; }
+  saving = true;
+  try {
+    const data = JSON.stringify(scores);
+    if (UP_URL && UP_TOKEN) await upstash(['SET', 'cw:scores', data]);
+    else { fs.mkdirSync(DATA_DIR, { recursive: true }); fs.writeFileSync(SCORE_FILE + '.tmp', data); fs.renameSync(SCORE_FILE + '.tmp', SCORE_FILE); }
+  } catch (e) { console.error('Could not save scores:', e.message); }
+  saving = false;
+  if (dirty) { dirty = false; saveScores(); }
+}
+function recordResult(room, winnerId) {
+  const now = Date.now();
+  for (const p of room.players) {
+    const k = p.name.toLowerCase();
+    const e = scores[k] || (scores[k] = { name: p.name, wins: 0, games: 0, last: 0 });
+    e.name = p.name; e.games++; e.last = now;
+    if (p.id === winnerId) e.wins++;
+  }
+  saveScores();
+}
+function leaderboard() {
+  return Object.values(scores)
+    .map((e) => ({ name: e.name, wins: e.wins, games: e.games, pct: e.games ? Math.round((100 * e.wins) / e.games) : 0, last: e.last }))
+    .sort((a, b) => b.wins - a.wins || b.pct - a.pct || a.games - b.games || a.name.localeCompare(b.name))
+    .slice(0, 50);
+}
+
 const rooms = new Map();
 const rid = () => crypto.randomBytes(8).toString('hex');
 function newCode() {
@@ -60,7 +108,9 @@ function startTurn(room) {
 }
 
 function finish(room, winnerId, reason) {
+  if (room.status === 'ended') return;
   room.status = 'ended';
+  if (room.players.length > 1) recordResult(room, winnerId);
   room.winner = winnerId;
   room.turn = null;
   const w = room.players.find((p) => p.id === winnerId);
@@ -232,6 +282,7 @@ function leave(room, player) {
 const server = http.createServer((req, res) => {
   const url = decodeURIComponent((req.url || '/').split('?')[0]);
   if (url === '/healthz') { res.writeHead(200); return res.end('ok'); }
+  if (url === '/api/scores') { res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); return res.end(JSON.stringify(leaderboard())); }
   let file = path.normalize(path.join(PUBLIC, url === '/' ? 'index.html' : url));
   if (!file.startsWith(PUBLIC)) { res.writeHead(403); return res.end(); }
   fs.readFile(file, (e, data) => {
@@ -264,5 +315,5 @@ setInterval(() => {
   for (const [code, room] of rooms) if (now - room.touched > 6 * 3600 * 1000) { clearTimeout(room.timer); rooms.delete(code); }
 }, 30000);
 
-if (require.main === module) server.listen(PORT, () => console.log('Cosmic Wimpout running on port ' + PORT));
-module.exports = { server, rooms };
+if (require.main === module) loadScores().then(() => server.listen(PORT, () => console.log('Cosmic Wimpout running on port ' + PORT + (UP_URL ? ' (scores in Upstash)' : ' (scores in ' + SCORE_FILE + ')'))));
+module.exports = { server, rooms, loadScores, leaderboard, recordForTest: recordResult };

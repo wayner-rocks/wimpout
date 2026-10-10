@@ -30,3 +30,8 @@ docker build -t wimpout . && docker run -d --restart unless-stopped -p 3000:3000
 
 ## Art
 Generated images live in `public/img/` (dice faces `die_*.png`, `bg.jpg`, `logo.jpg`); app icons are `public/icon-*.png`. Swap any file for your own with the same name. Mute button is top-right in the game.
+
+## Hall of Fame (win tracking)
+Wins and games are tracked by player name and shown under the Hall of Fame button.
+- Default: saved to `data/scores.json` (set `DATA_DIR` to change the folder). On hosts with temporary disks (e.g. Render free tier) this file is erased on every deploy/restart.
+- Durable option: create a free Upstash Redis database and set `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` as environment variables. Scores are then stored there instead.

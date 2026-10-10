@@ -63,6 +63,32 @@ button:disabled{opacity:.35;transform:none}
 .modal .card{background:#1b1040;max-width:520px;margin:20px auto;font-size:14px;line-height:1.45}
 .modal table{width:100%;border-collapse:collapse}.modal td{padding:3px 6px;border-bottom:1px solid #ffffff18}
 .big{font-size:26px;text-align:center;font-weight:900;margin:10px 0}
+
+.lane{margin:8px 0 12px}
+.lh{display:flex;justify-content:space-between;align-items:baseline;padding:0 4px 3px;font-size:14px}
+.lh b{font-weight:700}.lh .sc{font-size:20px;font-weight:900}.lh .tag{font-size:11px;opacity:.7;margin-left:6px}
+.lane.cur .lh b{color:#ffd84d}
+.lane.out{opacity:.5;filter:grayscale(.8)}
+.track{position:relative;height:56px;border-radius:14px;background:#0b0620 url(img/lane.jpg) center/100% 100%;border:2px solid #ffffff22;overflow:visible}
+.lane.cur .track{border-color:#ffd84d;box-shadow:0 0 14px #ffd84d66}
+.tick{position:absolute;top:0;bottom:0;width:0;border-left:1px dashed #ffffff30}
+.tick i{position:absolute;bottom:1px;left:3px;font-style:normal;font-size:10px;opacity:.55}
+.goalimg{position:absolute;right:2px;top:50%;width:46px;height:46px;transform:translateY(-50%);filter:drop-shadow(0 0 8px #ffd84d)}
+.rk,.ghost{position:absolute;top:50%;width:48px;margin-top:-17px;transition:left 1.3s cubic-bezier(.2,.8,.2,1)}
+.rk img,.ghost img{width:100%;display:block;filter:drop-shadow(0 0 5px #fff6)}
+.ghost{opacity:.4;transition:left .5s}.ghost img{filter:grayscale(.3)}
+.ghost span{position:absolute;top:-16px;left:6px;font-size:11px;font-weight:800;color:#5dffa0;white-space:nowrap}
+.rk .pop{position:absolute;top:-24px;left:0;font-weight:900;font-size:15px;color:#5dffa0;text-shadow:0 0 6px #000;animation:pop 2.4s ease-out forwards;white-space:nowrap}
+@keyframes pop{0%{transform:translateY(8px) scale(.6);opacity:0}15%{opacity:1;transform:translateY(0) scale(1.2)}100%{transform:translateY(-14px);opacity:0}}
+.rk .crown{position:absolute;top:-17px;right:0;font-size:15px}
+.rk .boom{position:absolute;inset:0;font-size:28px;text-align:center}
+.rk.near img{animation:glowp .8s ease-in-out infinite alternate}
+@keyframes glowp{to{filter:drop-shadow(0 0 12px #ffd84d)}}
+.lickbar{text-align:center;font-weight:800;color:#ffd84d;margin:4px 0 2px;animation:glowp .8s infinite alternate}
+
+.board{width:100%;border-collapse:collapse;font-size:15px}.board th{font-size:11px;text-transform:uppercase;letter-spacing:1px;opacity:.6;text-align:right;padding:4px 6px}.board th:nth-child(2){text-align:left}
+.board td{padding:8px 6px;border-bottom:1px solid #ffffff18;text-align:right}.board td:nth-child(2){text-align:left;font-weight:700}.board td:first-child{width:34px;text-align:center}
+.board tr.me td{color:#ffd84d}.board .w{font-weight:900;font-size:18px;color:#5dffa0}
 </style>
 </head>
 <body>
@@ -76,6 +102,7 @@ const $ = (s) => document.querySelector(s);
 const G = { sun: ['☀️', ''], '10': ['10', ''], '5': ['5', ''], '2': ['☾', '2'], '3': ['▲', '3'], '4': ['✸', '4'], '6': ['★', '6'] };
 const ALL = Object.keys(G);
 const img = (f) => `<img src="img/die_${f}.png" alt="${f}" draggable="false">`;
+let pops = {}, lastPos = {}, boardOpen = false, boardData = null;
 let ws, S = null, errMsg = '', shownRoll = -1, animating = false, sunChoice = false, rulesOpen = false, lastEvent = 0, animTimer = null;
 
 function send(o) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(o)); }
@@ -98,7 +125,10 @@ function connect() {
 
 function onState(st) {
   const prev = S;
+  if (prev && prev.code === st.code) st.players.forEach((p) => { const o = prev.players.find((x) => x.id === p.id); if (o && p.score > o.score) { pops[p.id] = p.score - o.score; setTimeout(() => { delete pops[p.id]; render(); }, 2600); } });
+  if (st.status === 'ended' && (!prev || prev.status !== 'ended')) setTimeout(loadBoard, 600);
   S = st; errMsg = '';
+  if (st.status === 'lobby') lastPos = {};
   const t = st.turn;
   if (t && t.rollNo !== shownRoll && t.rolled) {
     shownRoll = t.rollNo;
@@ -129,6 +159,23 @@ function animateRoll(idxs) {
 }
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+
+function loadBoard(cb) { fetch('/api/scores', { cache: 'no-store' }).then((r) => r.json()).then((d) => { boardData = d; if (cb) cb(); render(); }).catch(() => { boardData = boardData || []; render(); }); }
+function openBoard() { boardOpen = true; render(); loadBoard(); }
+function boardRows(list, mine) {
+  const medals = ['🥇', '🥈', '🥉'];
+  return list.map((e, i) => `<tr class="${mine && mine.toLowerCase() === e.name.toLowerCase() ? 'me' : ''}"><td>${medals[i] || i + 1}</td><td>${esc(e.name)}</td><td class="w">${e.wins}</td><td>${e.games}</td><td>${e.pct}%</td></tr>`).join('');
+}
+function boardTable(list, mine) {
+  if (!list) return '<div class="hint">Loading...</div>';
+  if (!list.length) return '<div class="hint">No games finished yet. Win one and your name goes up here!</div>';
+  return `<table class="board"><tr><th></th><th>Player</th><th>Wins</th><th>Games</th><th>Win %</th></tr>${boardRows(list, mine)}</table>`;
+}
+function boardModal() {
+  const me = S ? (S.players.find((p) => p.id === S.you) || {}).name : (localStorage.getItem('cwname') || '');
+  return `<div class="modal" onclick="boardOpen=false;render()"><div class="card" onclick="event.stopPropagation()"><h3 style="margin-top:0">🏆 Hall of Fame</h3>${boardTable(boardData, me)}<div class="hint">Tracked by player name, so always use the same spelling.</div><button onclick="boardOpen=false;render()">Close</button></div></div>`;
+}
 
 function rulesHtml() {
   return `<div class="modal" onclick="rulesOpen=false;render()"><div class="card" onclick="event.stopPropagation()">
@@ -171,7 +218,7 @@ function render() {
 <button onclick="createRoom()">Create a game</button></div>
 <div class="card"><input id="code" class="code" maxlength="4" placeholder="CODE">
 <button class="alt" onclick="joinRoom()">Join a game</button></div>
-<button class="ghost" onclick="rulesOpen=true;render()">How to play</button>`;
+<div class="row"><button class="ghost" onclick="rulesOpen=true;render()">How to play</button><button class="ghost" onclick="openBoard()">🏆 Hall of Fame</button></div>`;
   } else if (S.status === 'lobby') {
     const host = S.hostId === S.you;
     h += `<div class="sub">Share this code with your friends</div><div class="codebig">${S.code}</div>
@@ -181,17 +228,16 @@ function render() {
 <button onclick="send({type:'start'})" ${S.players.length < 2 ? 'disabled' : ''}>Start game</button>
 ${S.players.length < 2 ? '<div class="hint">Waiting for at least one more player...</div>' : ''}</div>`;
     } else h += `<div class="hint">Waiting for the host to start (playing to ${S.goal})...</div>`;
-    h += `<button class="ghost" onclick="rulesOpen=true;render()">How to play</button><button class="ghost" onclick="leaveGame()">Leave</button>`;
+    h += `<div class="row"><button class="ghost" onclick="rulesOpen=true;render()">How to play</button><button class="ghost" onclick="openBoard()">🏆 Hall of Fame</button></div><button class="ghost" onclick="leaveGame()">Leave</button>`;
   } else {
     const t = S.turn;
     const curP = S.players.find((p) => p.id === S.cur);
     const mine = S.cur === S.you;
     const host = S.hostId === S.you;
-    h += `<div class="card">${S.players.map((p) => `<div class="pl ${p.id === S.cur && S.status === 'playing' ? 'cur' : ''} ${p.out ? 'out' : ''}"><span><span class="dot ${p.connected ? '' : 'off'}"></span>${esc(p.name)}${p.id === S.you ? '<span class="tag">you</span>' : ''}${!p.opened && !p.out ? '<span class="tag">not in yet</span>' : ''}</span><span class="sc">${p.score}</span></div>`).join('')}
-<div class="hint">Goal: ${S.goal}${S.lastLicks ? ' — LAST LICKS!' : ''}</div></div>`;
+    h += raceHtml();
     if (S.status === 'ended') {
       const w = S.players.find((p) => p.id === S.winner);
-      h += `<div class="card"><div class="big">🏆 ${w ? esc(w.name) : 'Nobody'} wins!</div>${host ? '<button onclick="send({type:\'again\'})">Play again</button>' : '<div class="hint">Waiting for host to start a rematch</div>'}<button class="ghost" onclick="leaveGame()">Leave</button></div>`;
+      h += `<div class="card"><div class="big">🏆 ${w ? esc(w.name) : 'Nobody'} wins!</div>${host ? '<button onclick="send({type:\'again\'})">Play again</button>' : '<div class="hint">Waiting for host to start a rematch</div>'}<div style="margin-top:10px"><b>🏆 Hall of Fame</b>${boardTable(boardData && boardData.slice(0, 5), (S.players.find((p) => p.id === S.you) || {}).name)}<button class="ghost" onclick="openBoard()">Full list</button></div><button class="ghost" onclick="leaveGame()">Leave</button></div>`;
     } else if (t) {
       const evt = S.log[S.log.length - 1] || '';
       let msgCls = '', msg = '';
@@ -220,11 +266,44 @@ ${S.players.length < 2 ? '<div class="hint">Waiting for at least one more player
 <div class="row"><button class="ghost" onclick="rulesOpen=true;render()">Rules</button>${host && S.status === 'playing' ? '<button class="ghost" onclick="if(confirm(\'Skip this turn?\'))send({type:\'skip\'})">Skip turn</button>' : ''}<button class="ghost" onclick="if(confirm('Leave the game?'))leaveGame()">Leave</button></div>`;
   }
   if (rulesOpen) h += rulesHtml();
+  if (boardOpen) h += boardModal();
   const nameVal = $('#name') ? $('#name').value : null, codeVal = $('#code') ? $('#code').value : null;
   app.innerHTML = h;
+  animateRace();
   if (nameVal !== null && $('#name')) $('#name').value = nameVal;
   if (codeVal !== null && $('#code')) $('#code').value = codeVal;
   if (keepTumble) document.querySelectorAll('.die').forEach((d) => { if (S && S.turn && S.turn.lastRoll.includes(+d.dataset.i)) d.classList.add('tumble'); });
+}
+
+
+function raceHtml() {
+  const t = S.turn, goal = S.goal;
+  const quarter = [1, 2, 3].map((k) => `<div class="tick" style="left:calc((100% - 96px)*${k / 4} + 26px)"><i>${Math.round(goal * k / 4)}</i></div>`).join('');
+  let out = '<div class="card" id="race">';
+  S.players.forEach((p, idx) => {
+    const f = Math.min(1, p.score / goal);
+    const isCur = p.id === S.cur && S.status === 'playing';
+    const start = lastPos[p.id] === undefined ? 0 : lastPos[p.id];
+    const gf = isCur && t && !t.over && t.pts > 0 ? Math.min(1, (p.score + t.pts) / goal) : null;
+    const lead = S.lastLicks && S.lastLicks.leader === p.id;
+    out += `<div class="lane ${isCur ? 'cur' : ''} ${p.out ? 'out' : ''}"><div class="lh"><span><span class="dot ${p.connected ? '' : 'off'}"></span><b>${esc(p.name)}</b>${p.id === S.you ? '<span class="tag">you</span>' : ''}${!p.opened && !p.out ? '<span class="tag">not in yet</span>' : ''}</span><span class="sc">${p.score}</span></div>
+<div class="track">${quarter}<img class="goalimg" src="img/goal.png" alt="goal ${goal}">
+${gf !== null ? `<div class="ghost" data-id="${p.id}" data-f="${gf}" style="left:calc((100% - 96px)*${start} + 2px)"><img src="img/rocket_${idx % 8}.png" alt=""><span>+${t.pts}</span></div>` : ''}
+<div class="rk ${f >= 0.85 && !p.out ? 'near' : ''}" data-id="${p.id}" data-f="${f}" style="left:calc((100% - 96px)*${start} + 2px)"><img src="img/rocket_${idx % 8}.png" alt="">${pops[p.id] ? `<span class="pop">+${pops[p.id]}</span>` : ''}${lead ? '<span class="crown">👑</span>' : ''}${p.out ? '<span class="boom">💥</span>' : ''}</div></div></div>`;
+  });
+  out += `<div class="hint">First to ${goal} — then everyone else gets last licks</div>${S.lastLicks ? '<div class="lickbar">🔥 LAST LICKS 🔥</div>' : ''}</div>`;
+  return out;
+}
+function animateRace() {
+  const els = document.querySelectorAll('#race .rk, #race .ghost');
+  if (!els.length) return;
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    els.forEach((el) => {
+      const f = parseFloat(el.dataset.f);
+      el.style.left = `calc((100% - 96px)*${f} + 2px)`;
+      if (el.classList.contains('rk')) lastPos[el.dataset.id] = f;
+    });
+  }));
 }
 
 function myName() { const n = ($('#name').value || '').trim() || 'Player'; localStorage.setItem('cwname', n); return n; }
