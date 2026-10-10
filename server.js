@@ -76,16 +76,24 @@ function log(room, text, kind) {
   room.event = { seq: (room.event ? room.event.seq : 0) + 1, text, kind: kind || 'info' };
 }
 
+// House rule: you can't stop on the same score as another player; you must keep rolling.
+function bankBlocker(room) {
+  const t = room.turn, cur = room.players[room.cur];
+  if (!room.noShare || !t || !cur) return null;
+  const ns = cur.score + t.pts;
+  return room.players.find((p) => p.id !== cur.id && !p.out && p.score === ns && ns > 0) || null;
+}
+
 function stateFor(room, pid) {
   const t = room.turn;
   const cur = room.players[room.cur];
   return {
-    code: room.code, status: room.status, goal: room.goal, hostId: room.hostId, you: pid,
+    code: room.code, status: room.status, goal: room.goal, noShare: room.noShare, hostId: room.hostId, you: pid,
     cur: cur ? cur.id : null,
     players: room.players.map((p) => ({ id: p.id, name: p.name, score: p.score, opened: p.opened, out: p.out, connected: p.conns.size > 0 })),
     turn: t ? {
       pts: t.pts, dice: t.dice, avail: t.avail, pending: t.pending, mustAll: t.mustAll, rolled: t.rolled,
-      canRerollSun: t.canRerollSun, canBank: cur ? G.canBank(t, cur.opened) : false, over: t.over,
+      canRerollSun: t.canRerollSun, canBank: cur ? G.canBank(t, cur.opened) && !bankBlocker(room) : false, blockedBy: cur && G.canBank(t, cur.opened) && bankBlocker(room) ? bankBlocker(room).name : null, over: t.over,
       outcome: t.outcome, lastRoll: t.lastRoll, rollNo: t.rollNo, note: t.note
     } : null,
     lastLicks: room.lastLicks ? { leader: room.lastLicks.leader, left: [...room.lastLicks.left] } : null,
@@ -166,7 +174,7 @@ function handle(ws, msg) {
   const err = (m) => send({ type: 'error', message: m });
 
   if (msg.type === 'create') {
-    const room = { code: newCode(), players: [], hostId: null, status: 'lobby', goal: msg.goal === 300 ? 300 : 500, cur: 0, turn: null, lastLicks: null, winner: null, log: [], event: null, timer: null, touched: Date.now() };
+    const room = { code: newCode(), players: [], hostId: null, status: 'lobby', goal: msg.goal === 300 ? 300 : 500, noShare: true, cur: 0, turn: null, lastLicks: null, winner: null, log: [], event: null, timer: null, touched: Date.now() };
     rooms.set(room.code, room);
     return join(ws, room, cleanName(msg.name));
   }
@@ -195,6 +203,10 @@ function handle(ws, msg) {
   }
   if (msg.type === 'goal' && room.status === 'lobby' && player.id === room.hostId) {
     room.goal = msg.goal === 300 ? 300 : 500;
+    return broadcast(room);
+  }
+  if (msg.type === 'rule' && room.status === 'lobby' && player.id === room.hostId) {
+    room.noShare = !!msg.noShare;
     return broadcast(room);
   }
   if (msg.type === 'start') {
@@ -234,6 +246,8 @@ function handle(ws, msg) {
   }
   if (msg.type === 'bank') {
     if (!G.canBank(t, cur.opened)) return err("You can't stop yet.");
+    const bl = bankBlocker(room);
+    if (bl) return err("You can't land on " + bl.name + "'s space (" + bl.score + "). Roll again!");
     cur.score += t.pts;
     cur.opened = true;
     log(room, cur.name + ' banked ' + t.pts + ' -> ' + cur.score, 'good');
@@ -316,4 +330,4 @@ setInterval(() => {
 }, 30000);
 
 if (require.main === module) loadScores().then(() => server.listen(PORT, () => console.log('Cosmic Wimpout running on port ' + PORT + (UP_URL ? ' (scores in Upstash)' : ' (scores in ' + SCORE_FILE + ')'))));
-module.exports = { server, rooms, loadScores, leaderboard, recordForTest: recordResult };
+module.exports = { server, rooms, loadScores, leaderboard, recordForTest: recordResult, bankBlocker };

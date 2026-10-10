@@ -77,6 +77,7 @@ button:disabled{opacity:.35;transform:none}
 .rk,.ghost{position:absolute;top:50%;width:48px;margin-top:-17px;transition:left 1.3s cubic-bezier(.2,.8,.2,1)}
 .rk img,.ghost img{width:100%;display:block;filter:drop-shadow(0 0 5px #fff6)}
 .ghost{opacity:.4;transition:left .5s}.ghost img{filter:grayscale(.3)}
+.ghost.blocked{opacity:.75}.ghost.blocked img{filter:hue-rotate(150deg) saturate(2)}.ghost.blocked span{color:#ff6b81}
 .ghost span{position:absolute;top:-16px;left:6px;font-size:11px;font-weight:800;color:#5dffa0;white-space:nowrap}
 .rk .pop{position:absolute;top:-24px;left:0;font-weight:900;font-size:15px;color:#5dffa0;text-shadow:0 0 6px #000;animation:pop 2.4s ease-out forwards;white-space:nowrap}
 @keyframes pop{0%{transform:translateY(8px) scale(.6);opacity:0}15%{opacity:1;transform:translateY(0) scale(1.2)}100%{transform:translateY(-14px);opacity:0}}
@@ -191,6 +192,7 @@ function rulesHtml() {
 <li><b>Futtless rule:</b> after a flash you must roll the leftover dice and score to clear it, or wimp out. Rolling a flash face again = automatic reroll.</li>
 <li><b>Sun rule:</b> a Sun rolled with a pair must make a flash.</li>
 <li><b>Must-roll:</b> if all 5 dice score, you must roll all 5 again.</li>
+<li><b>No sharing a space</b> (house rule): you can't stop on the exact same score as another player. If banking would tie someone, you must roll again.</li>
 <li><b>Last licks:</b> when someone reaches the goal, everyone else gets one more turn.</li></ul>
 <button onclick="rulesOpen=false;render()">Got it</button></div></div>`;
 }
@@ -224,10 +226,10 @@ function render() {
     h += `<div class="sub">Share this code with your friends</div><div class="codebig">${S.code}</div>
 <div class="card"><b>Players (${S.players.length})</b>${S.players.map((p) => `<div class="pl"><span><span class="dot ${p.connected ? '' : 'off'}"></span>${esc(p.name)}${p.id === S.hostId ? '<span class="tag">host</span>' : ''}${p.id === S.you ? '<span class="tag">you</span>' : ''}</span></div>`).join('')}</div>`;
     if (host) {
-      h += `<div class="card"><div class="hint">Play to:</div><div class="row"><button class="${S.goal === 300 ? '' : 'ghost'}" onclick="send({type:'goal',goal:300})">300</button><button class="${S.goal === 500 ? '' : 'ghost'}" onclick="send({type:'goal',goal:500})">500</button></div>
+      h += `<div class="card"><label class="chk" style="justify-content:flex-start"><input type="checkbox" ${S.noShare ? 'checked' : ''} onchange="send({type:'rule',noShare:this.checked})"> House rule: no sharing a space (can't stop on another player's score)</label><div class="hint">Play to:</div><div class="row"><button class="${S.goal === 300 ? '' : 'ghost'}" onclick="send({type:'goal',goal:300})">300</button><button class="${S.goal === 500 ? '' : 'ghost'}" onclick="send({type:'goal',goal:500})">500</button></div>
 <button onclick="send({type:'start'})" ${S.players.length < 2 ? 'disabled' : ''}>Start game</button>
 ${S.players.length < 2 ? '<div class="hint">Waiting for at least one more player...</div>' : ''}</div>`;
-    } else h += `<div class="hint">Waiting for the host to start (playing to ${S.goal})...</div>`;
+    } else h += `<div class="hint">Waiting for the host to start (playing to ${S.goal})...${S.noShare ? '<br>House rule on: you can\'t land on another player\'s exact score.' : ''}</div>`;
     h += `<div class="row"><button class="ghost" onclick="rulesOpen=true;render()">How to play</button><button class="ghost" onclick="openBoard()">🏆 Hall of Fame</button></div><button class="ghost" onclick="leaveGame()">Leave</button>`;
   } else {
     const t = S.turn;
@@ -251,11 +253,12 @@ ${S.players.length < 2 ? '<div class="hint">Waiting for at least one more player
         if (!t.rolled) hint = 'Roll all five cubes!';
         else if (t.mustAll) hint = 'All five scored — you must roll all five again!';
         else if (t.pending) hint = 'Flash! Roll the leftover cubes to clear it.';
+        else if (t.blockedBy) hint = '⚠️ Stopping now would land you on ' + t.blockedBy + "'s space. You must roll again!";
         else if (!t.canBank && t.pts < S.openMin && !curP.opened) hint = 'You need ' + S.openMin + '+ to get in. Keep rolling.';
         else hint = 'Green dice are kept. Roll the rest or bank your points.';
         h += `<div class="hint">${hint}</div>`;
         if (t.canRerollSun) h += `<label class="chk"><input type="checkbox" ${sunChoice ? 'checked' : ''} onchange="sunChoice=this.checked"> Reroll my Flaming Sun ☀️ (give up its 10)</label>`;
-        h += `<div class="row"><button onclick="doRoll()" ${animating ? 'disabled' : ''}>🎲 Roll ${t.avail.length}</button>${t.canBank ? `<button class="bank" onclick="send({type:'bank'})" ${animating ? 'disabled' : ''}>Bank ${t.pts}</button>` : ''}</div>`;
+        h += `<div class="row"><button onclick="doRoll()" ${animating ? 'disabled' : ''}>🎲 Roll ${t.avail.length}</button>${t.canBank ? `<button class="bank" onclick="send({type:'bank'})" ${animating ? 'disabled' : ''}>Bank ${t.pts}</button>` : ''}${t.blockedBy ? `<button class="bank" disabled>Can't bank ${t.pts}</button>` : ''}</div>`;
       } else if (!t.over) {
         h += `<div class="hint">Waiting for ${esc(curP.name)}...</div>`;
         if (host && curP && !curP.connected) h += `<button class="ghost" onclick="send({type:'skip'})">Skip disconnected player</button>`;
@@ -288,7 +291,7 @@ function raceHtml() {
     const lead = S.lastLicks && S.lastLicks.leader === p.id;
     out += `<div class="lane ${isCur ? 'cur' : ''} ${p.out ? 'out' : ''}"><div class="lh"><span><span class="dot ${p.connected ? '' : 'off'}"></span><b>${esc(p.name)}</b>${p.id === S.you ? '<span class="tag">you</span>' : ''}${!p.opened && !p.out ? '<span class="tag">not in yet</span>' : ''}</span><span class="sc">${p.score}</span></div>
 <div class="track">${quarter}<img class="goalimg" src="img/goal.png" alt="goal ${goal}">
-${gf !== null ? `<div class="ghost" data-id="${p.id}" data-f="${gf}" style="left:calc((100% - 96px)*${start} + 2px)"><img src="img/rocket_${idx % 8}.png" alt=""><span>+${t.pts}</span></div>` : ''}
+${gf !== null ? `<div class="ghost ${t.blockedBy ? 'blocked' : ''}" data-id="${p.id}" data-f="${gf}" style="left:calc((100% - 96px)*${start} + 2px)"><img src="img/rocket_${idx % 8}.png" alt=""><span>+${t.pts}${t.blockedBy ? ' ⚠️' : ''}</span></div>` : ''}
 <div class="rk ${f >= 0.85 && !p.out ? 'near' : ''}" data-id="${p.id}" data-f="${f}" style="left:calc((100% - 96px)*${start} + 2px)"><img src="img/rocket_${idx % 8}.png" alt="">${pops[p.id] ? `<span class="pop">+${pops[p.id]}</span>` : ''}${lead ? '<span class="crown">👑</span>' : ''}${p.out ? '<span class="boom">💥</span>' : ''}</div></div></div>`;
   });
   out += `<div class="hint">First to ${goal} — then everyone else gets last licks</div>${S.lastLicks ? '<div class="lickbar">🔥 LAST LICKS 🔥</div>' : ''}</div>`;
